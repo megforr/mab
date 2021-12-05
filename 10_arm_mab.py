@@ -55,7 +55,7 @@ no_experiments = 2000
 # 1. store the rolling average at each timestep for each experiment
 exp_q_t_rolling_average_values = {}
 # 2. store the loss between q_* and q_t values at each timestep
-exp_q_t_loss = {}
+#exp_q_t_loss = {}
 
 for exp in np.arange(1, no_experiments+1):
 
@@ -64,9 +64,6 @@ for exp in np.arange(1, no_experiments+1):
     #exp_q_t_loss[exp] = {}
 
     q_star_values = action_mu + sigma * np.random.randn(1, action_space)
-    # print('-------------------------------------')
-    # print('Actual q-star values: ', q_star_values)
-    # print('-------------------------------------')
 
     # value estimates by amount of exploration (epsilon)
     q_t_values = {
@@ -110,8 +107,6 @@ for exp in np.arange(1, no_experiments+1):
 
     exp_q_t_rolling_average_values[exp] = q_t_rolling_avg_values
     #exp_q_t_loss[exp] = {}
-    #break
-
 
 data_rows = []
 for exp in exp_q_t_rolling_average_values:
@@ -123,18 +118,6 @@ df = pd.DataFrame(data_rows, columns=['experiment','epsilon','timestep','q_t_val
 avg_df = df.groupby(['epsilon','timestep']).agg(avg_q_values=('q_t_values','mean'),
                                                 std_q_values=('q_t_values','std')
                                                 ).reset_index()
-
-
-# single experiment results
-# q_t_values_df = pd.DataFrame(q_t_rolling_avg_values)
-# #print(q_t_values_df.head())
-# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.00], color='green', label='0.0')
-# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.01], color='red', label='0.01')
-# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.10], color='blue', label='0.1')
-# plt.xlabel('Timesteps')
-# plt.ylabel('Rolling average reward')
-# plt.savefig(f'experiment_results/mab_10_arm_{time_now}.png')
-# plt.show()
 
 palette = {
     0: 'tab:green',
