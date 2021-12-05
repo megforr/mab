@@ -38,79 +38,124 @@ def epsilon_greedy(epsilon, q_values):
 
 def update(old_estimate, target, step_size):
     '''
-    In place update of values
+    Update values in place
     :return: new_estimate
     '''
     return old_estimate + step_size * (target - old_estimate)
 
+time_now = datetime.datetime.now().strftime('%m_%d_%Y_%H_%M')
 
 action_space = 10
 sigma = 1 # variance
 action_mu = 0 # mean
-q_star_values = action_mu + sigma * np.random.randn(1, action_space)
-
-print('-------------------------------------')
-print('Actual q-star values: ', q_star_values)
-print('-------------------------------------')
-
 no_steps = 1000
 no_experiments = 2000
 
-# value estimates by amount of exploration (epsilon)
-q_t_values = {
-    0: np.zeros(action_space),
-    0.1: np.zeros(action_space),
-    0.01: np.zeros(action_space)
+# store experiment results
+# 1. store the rolling average at each timestep for each experiment
+exp_q_t_rolling_average_values = {}
+# 2. store the loss between q_* and q_t values at each timestep
+exp_q_t_loss = {}
+
+for exp in np.arange(1, no_experiments+1):
+
+    print('Experiment: ', exp)
+    exp_q_t_rolling_average_values[exp] = {}
+    #exp_q_t_loss[exp] = {}
+
+    q_star_values = action_mu + sigma * np.random.randn(1, action_space)
+    # print('-------------------------------------')
+    # print('Actual q-star values: ', q_star_values)
+    # print('-------------------------------------')
+
+    # value estimates by amount of exploration (epsilon)
+    q_t_values = {
+        0: np.zeros(action_space),
+        0.1: np.zeros(action_space),
+        0.01: np.zeros(action_space)
+    }
+
+    q_t_rolling_avg_window = {
+        0: deque(maxlen=50),
+        0.1: deque(maxlen=50),
+        0.01: deque(maxlen=50)
+    }
+
+    q_t_rolling_avg_values = {
+        0: {},
+        0.1: {},
+        0.01: {}
+    }
+
+    for t in np.arange(1, no_steps+1):
+
+        # if t % 250 == 0:
+        #     print('Timestep: ', t)
+        #     print('Current value estimates: ', q_t_values)
+
+        for eps in q_t_values.keys():
+            # select action according to epsilon value
+            action = epsilon_greedy(eps, q_t_values[eps])
+
+            # receive reward with some variance around q*-value
+            reward = q_star_values[0][action] + sigma * np.random.randn()
+
+            # update q-value estimates
+            new_q_value = update(q_t_values[eps][action], reward, 1/t)
+            q_t_values[eps][action] = new_q_value
+
+            # store
+            q_t_rolling_avg_window[eps].append(reward)
+            q_t_rolling_avg_values[eps][t] = np.mean(q_t_rolling_avg_window[eps])
+
+    exp_q_t_rolling_average_values[exp] = q_t_rolling_avg_values
+    #exp_q_t_loss[exp] = {}
+    #break
+
+
+data_rows = []
+for exp in exp_q_t_rolling_average_values:
+    for eps in exp_q_t_rolling_average_values[exp]:
+        for t in exp_q_t_rolling_average_values[exp][eps]:
+            data_rows.append([exp, eps, t, exp_q_t_rolling_average_values[exp][eps][t]])
+
+df = pd.DataFrame(data_rows, columns=['experiment','epsilon','timestep','q_t_values'])
+avg_df = df.groupby(['epsilon','timestep']).agg(avg_q_values=('q_t_values','mean'),
+                                                std_q_values=('q_t_values','std')
+                                                ).reset_index()
+
+
+# single experiment results
+# q_t_values_df = pd.DataFrame(q_t_rolling_avg_values)
+# #print(q_t_values_df.head())
+# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.00], color='green', label='0.0')
+# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.01], color='red', label='0.01')
+# sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.10], color='blue', label='0.1')
+# plt.xlabel('Timesteps')
+# plt.ylabel('Rolling average reward')
+# plt.savefig(f'experiment_results/mab_10_arm_{time_now}.png')
+# plt.show()
+
+palette = {
+    0: 'tab:green',
+    0.01: 'tab:red',
+    0.1: 'tab:blue',
 }
 
-q_t_rolling_avg_window = {
-    0: deque(maxlen=50),
-    0.1: deque(maxlen=50),
-    0.01: deque(maxlen=50)
-}
-
-q_t_rolling_avg_values = {
-    0: [],
-    0.1: [],
-    0.01: []
-}
-
-
-for t in np.arange(1, no_steps+1):
-
-    print('Timestep: ', t)
-    print('Current value estimates: ', q_t_values)
-
-    for eps in q_t_values.keys():
-        #print('Epsilon: ', eps)
-
-        # select action according to epsilon value
-        action = epsilon_greedy(eps, q_t_values[eps])
-        #print('Action: ', action)
-
-        # receive reward with some variance around q*-value
-        reward = q_star_values[0][action] + sigma * np.random.randn()
-        #print('Reward: ', reward)
-
-        # update q-value estimates
-        new_q_value = update(q_t_values[eps][action], reward, 1/t)
-        q_t_values[eps][action] = new_q_value
-        q_t_rolling_avg_window[eps].append(reward)
-        q_t_rolling_avg_values[eps].append(np.mean(q_t_rolling_avg_window[eps]))
-        #print('New estimated value: ', new_q_value)
-
-
-time_now = datetime.datetime.now().strftime('%m_%d_%Y_%H_%M')
-
-q_t_values_df = pd.DataFrame(q_t_rolling_avg_values)
-print(q_t_values_df.head())
-sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.00], color='green', label='0.0')
-sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.01], color='red', label='0.01')
-sns.lineplot(np.arange(1,no_steps+1), y=q_t_values_df[0.10], color='blue', label='0.1')
+sns.lineplot(x='timestep', y='avg_q_values', data=avg_df, hue='epsilon', palette=palette)
 plt.xlabel('Timesteps')
-plt.ylabel('Rolling average reward')
-plt.savefig(f'experiment_results/mab_10_arm_{time_now}.png')
+plt.ylabel('Average reward')
+plt.savefig(f'experiment_results/mab_10_arm_2000experiments_{time_now}.png')
 plt.show()
+
+sns.lineplot(x='timestep', y='q_t_values', data=df, hue='epsilon', palette=palette)
+plt.xlabel('Timesteps')
+plt.ylabel('Average reward')
+plt.savefig(f'experiment_results/mab_10_arm_2000experiments_boxplot_{time_now}.png')
+plt.show()
+
+
+
 
 
 
